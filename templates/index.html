@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Oil Classifier</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head><body>
+<nav><a href="/">Classifier</a><a href="/analytics">Analytics</a></nav>
+<h1>Edible vs Non-edible Oil</h1>
+{% if not ready %}<p class="warn">Model not trained yet. Run: python -m src.train</p>{% endif %}
+<div class="card"><h3>Live camera</h3>
+<video id="v" autoplay playsinline muted></video><br>
+<button id="cam">Start / stop camera</button>
+<div id="live">Hold the oil in the centre of the frame.</div></div>
+<div class="card"><h3>Upload image</h3>
+<input type="file" id="f" accept="image/*"> <button id="up">Predict</button>
+<div id="result"></div></div>
+<canvas id="c" width="256" height="256" hidden></canvas>
+<script>
+const v=document.getElementById('v'),c=document.getElementById('c'),ctx=c.getContext('2d');
+let timer=null,busy=false;
+function show(el,r){el.textContent=r.error?r.error:(r.label==='no oil detected'?'No oil detected':`${r.label} (${(r.confidence*100).toFixed(0)}%)`)}
+async function send(blob,el){const fd=new FormData();fd.append('image',blob,'frame.jpg');
+ const r=await fetch('/predict',{method:'POST',body:fd});show(el,await r.json())}
+document.getElementById('cam').onclick=async()=>{
+ if(timer){clearInterval(timer);timer=null;v.srcObject.getTracks().forEach(t=>t.stop());return}
+ try{v.srcObject=await navigator.mediaDevices.getUserMedia({video:true})}catch(e){alert('Camera blocked: '+e);return}
+ timer=setInterval(()=>{if(busy||!v.videoWidth)return;busy=true;
+  const s=Math.min(v.videoWidth,v.videoHeight)/2,x=(v.videoWidth-s)/2,y=(v.videoHeight-s)/2;
+  ctx.drawImage(v,x,y,s,s,0,0,256,256);
+  c.toBlob(b=>send(b,document.getElementById('live')).finally(()=>busy=false),'image/jpeg',0.9)},700)};
+document.getElementById('up').onclick=()=>{const f=document.getElementById('f').files[0];
+ if(f)send(f,document.getElementById('result'))};
+</script></body></html>

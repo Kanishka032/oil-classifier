@@ -1,0 +1,38 @@
+{
+  "features": "stats",
+  "images": 240,
+  "oils": 12,
+  "accuracy": 0.6583,
+  "best_params": {
+    "metric": "manhattan",
+    "n_neighbors": 9,
+    "weights": "uniform"
+  },
+  "report": {
+    "edible": {
+      "precision": 0.6959459459459459,
+      "recall": 0.7357142857142858,
+      "f1-score": 0.7152777777777778,
+      "support": 140.0
+    },
+    "non_edible": {
+      "precision": 0.5978260869565217,
+      "recall": 0.55,
+      "f1-score": 0.5729166666666666,
+      "support": 100.0
+    },
+    "accuracy": 0.6583333333333333,
+    "macro avg": {
+      "precision": 0.6468860164512338,
+      "recall": 0.6428571428571429,
+      "f1-score": 0.6440972222222222,
+      "support": 240.0
+    },
+    "weighted avg": {
+      "precision": 0.6550626713670192,
+      "recall": 0.6583333333333333,
+      "f1-score": 0.6559606481481481,
+      "support": 240.0
+    }
+  }
+}

@@ -1,0 +1,9 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Analytics</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head><body>
+<nav><a href="/">Classifier</a><a href="/analytics">Analytics</a></nav><h1>Model analytics</h1>
+{% if not m %}<p class="warn">No metrics yet. Train first: python -m src.train</p>{% else %}
+<div class="card"><p>Features: <b>{{ m.features }}</b> | Images: {{ m.images }} | Oils: {{ m.oils }}</p>
+<p>Leave-oil-out CV accuracy: <b>{{ (m.accuracy*100)|round(1) }}%</b></p>
+<p>Best params: {{ m.best_params }}</p></div>
+<img src="{{ url_for('static', filename='analytics/confusion.png') }}" alt="confusion matrix">{% endif %}
+</body></html>
