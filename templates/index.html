@@ -1,29 +1,79 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Oil Classifier</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oil Classifier</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head><body>
-<nav><a href="/">Classifier</a><a href="/analytics">Analytics</a></nav>
-<h1>Edible vs Non-edible Oil</h1>
+<header><div class="wrap"><h1>🛢️ Oil Classifier</h1>
+<nav><a href="/">Classifier</a><a href="/analytics">Analytics</a></nav></div></header>
+<main class="wrap">
 {% if not ready %}<p class="warn">Model not trained yet. Run: python -m src.train</p>{% endif %}
-<div class="card"><h3>Live camera</h3>
-<video id="v" autoplay playsinline muted></video><br>
-<button id="cam">Start / stop camera</button>
-<div id="live">Hold the oil in the centre of the frame.</div></div>
-<div class="card"><h3>Upload image</h3>
+
+<section class="card"><h2>Live camera</h2>
+<div class="cam" id="cam"><video id="v" autoplay playsinline muted></video>
+<div class="guide" id="guide" hidden></div><div class="ph" id="ph">Camera is off</div></div>
+<div class="row">
+<button id="start">Start camera</button>
+<button id="flip" class="ghost" disabled>Switch to front camera</button>
+<button id="stop" class="ghost" disabled>Stop</button></div>
+<div id="live" class="badge idle">Camera is off</div>
+<p class="hint">Keep the oil inside the dashed box, in even light, with a plain background. On phones the back camera opens by default.</p>
+</section>
+
+<section class="card"><h2>Upload image</h2>
 <input type="file" id="f" accept="image/*"> <button id="up">Predict</button>
-<div id="result"></div></div>
-<canvas id="c" width="256" height="256" hidden></canvas>
+<img id="pv" class="preview" hidden alt="preview">
+<p><span id="result" class="badge idle">No image yet</span></p></section>
+</main>
 <script>
-const v=document.getElementById('v'),c=document.getElementById('c'),ctx=c.getContext('2d');
-let timer=null,busy=false;
-function show(el,r){el.textContent=r.error?r.error:(r.label==='no oil detected'?'No oil detected':`${r.label} (${(r.confidence*100).toFixed(0)}%)`)}
-async function send(blob,el){const fd=new FormData();fd.append('image',blob,'frame.jpg');
- const r=await fetch('/predict',{method:'POST',body:fd});show(el,await r.json())}
-document.getElementById('cam').onclick=async()=>{
- if(timer){clearInterval(timer);timer=null;v.srcObject.getTracks().forEach(t=>t.stop());return}
- try{v.srcObject=await navigator.mediaDevices.getUserMedia({video:true})}catch(e){alert('Camera blocked: '+e);return}
- timer=setInterval(()=>{if(busy||!v.videoWidth)return;busy=true;
+const $=id=>document.getElementById(id);
+const v=$('v'),c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');
+let stream=null,timer=null,busy=false,facing='environment';
+
+function show(el,r){
+  el.className='badge';
+  if(r.error){el.textContent=r.error;el.classList.add('idle');return}
+  const pct=Math.round(r.confidence*100);
+  if(r.label==='no oil detected'){el.textContent='No oil detected'}
+  else if(r.label==='edible'){el.textContent=`Edible oil · ${pct}%`;el.classList.add('good')}
+  else{el.textContent=`Non-edible oil · ${pct}%`;el.classList.add('bad')}
+}
+async function send(blob,el){
+  const fd=new FormData();fd.append('image',blob,'frame.jpg');
+  try{const r=await fetch('/predict',{method:'POST',body:fd});show(el,await r.json())}
+  catch(e){show(el,{error:'Server not reachable.'})}
+}
+function tick(){
+  if(busy||!v.videoWidth)return;busy=true;
   const s=Math.min(v.videoWidth,v.videoHeight)/2,x=(v.videoWidth-s)/2,y=(v.videoHeight-s)/2;
   ctx.drawImage(v,x,y,s,s,0,0,256,256);
-  c.toBlob(b=>send(b,document.getElementById('live')).finally(()=>busy=false),'image/jpeg',0.9)},700)};
-document.getElementById('up').onclick=()=>{const f=document.getElementById('f').files[0];
- if(f)send(f,document.getElementById('result'))};
+  c.toBlob(b=>send(b,$('live')).finally(()=>busy=false),'image/jpeg',.9);
+}
+v.addEventListener('loadedmetadata',()=>{
+  $('cam').style.aspectRatio=v.videoWidth+'/'+v.videoHeight;
+  const g=$('guide');g.hidden=false;
+  if(v.videoWidth>=v.videoHeight){g.style.height='50%';g.style.width='auto'}
+  else{g.style.width='50%';g.style.height='auto'}
+});
+function stopCam(reset=true){
+  clearInterval(timer);timer=null;
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  v.srcObject=null;
+  if(reset){$('ph').hidden=false;$('guide').hidden=true;$('start').disabled=false;
+    $('flip').disabled=true;$('stop').disabled=true;
+    $('live').className='badge idle';$('live').textContent='Camera is off'}
+}
+async function startCam(){
+  stopCam(false);
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){alert('Camera needs HTTPS (or localhost).');return}
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1280}},audio:false})}
+  catch(e){alert('Camera blocked or not found: '+e.message);$('start').disabled=false;return}
+  v.srcObject=stream;v.classList.toggle('mirror',facing==='user');
+  $('ph').hidden=true;$('start').disabled=true;$('flip').disabled=false;$('stop').disabled=false;
+  $('flip').textContent=facing==='environment'?'Switch to front camera':'Switch to back camera';
+  $('live').className='badge idle';$('live').textContent='Looking...';
+  timer=setInterval(tick,700);
+}
+$('start').onclick=startCam;
+$('stop').onclick=()=>stopCam(true);
+$('flip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCam()};
+$('up').onclick=()=>{const f=$('f').files[0];if(f){$('pv').src=URL.createObjectURL(f);$('pv').hidden=false;send(f,$('result'))}};
 </script></body></html>
